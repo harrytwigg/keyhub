@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""
+toshy_common/screenshots/__main__.py
+
+CLI diagnostic for the screenshot shortcut detection system. Shows the
+per-slot resolution table (status, source, output combo, raw accelerator)
+and a preview of the keymaps that setup_screenshot_keymaps() would build
+from the default input combos.
+
+Run as:
+    python3 -m toshy_common.screenshots
+    python3 -m toshy_common.screenshots --de kde --de-ver 6
+
+Without --de, the desktop environment comes from Toshy's canonical
+EnvironmentInfo detector (same as the kblayout_detect package does).
+"""
+__version__ = '20260803'
+
+import os
+import sys
+import argparse
+
+from toshy_common.screenshots.sshot_defaults import (
+    CMD_FALLBACKS_DCT,
+    SLOT_NAMES,
+)
+from toshy_common.shortcut_detect import (
+    RecordingAPI,
+    STATUS_RESOLVED,
+    print_keymap_records,
+)
+from toshy_common.screenshots.sshot_keymaps import (
+    DEFAULT_INPUT_COMBOS_DCT,
+    _ESC_FIRST_DELAY_SEC,
+    _ESC_FIRST_DESKTOP_ENVS,
+    _WINDOW_SHIFT_PAIRS_LST,
+)
+from toshy_common.screenshots.sshot_keymaps import setup_screenshot_keymaps
+from toshy_common.screenshots.sshot_resolver import resolve_outputs
+
+
+def _detect_environment() -> 'tuple[str, str | None]':
+    """Get DESKTOP_ENV and DE_MAJ_VER from Toshy's canonical detector."""
+    try:
+        from toshy_common.env_context import EnvironmentInfo
+    except ImportError as import_err:
+        print(f'Could not import Toshy environment detection: {import_err}')
+        print("Pass the desktop environment explicitly, e.g.: --de kde --de-ver 6")
+        sys.exit(1)
+
+    env_info_dct = EnvironmentInfo().get_env_info()
+    return (env_info_dct.get('DESKTOP_ENV'), env_info_dct.get('DE_MAJ_VER'))
+
+
+def _print_literal_keymaps(desktop_env, de_maj_ver, results_dct):
+    print()
+    print('Generated keymaps (literal; when= conditions supplied by the config):')
+    api = RecordingAPI()
+    setup_screenshot_keymaps(api.namespace(
+        DESKTOP_ENV=desktop_env, DE_MAJ_VER=de_maj_ver),
+        results_dct=results_dct)
+    print_keymap_records(api.registered_lst)
+
+
+def _print_slot_table(results_dct: dict):
+    name_width      = max(len(slot) for slot in SLOT_NAMES) + 2
+    status_width    = 12
+    source_width    = 20
+    combo_width     = 22
+
+    header_str = (f'  {"slot".ljust(name_width)}{"status".ljust(status_width)}'
+                    f'{"source".ljust(source_width)}{"combo".ljust(combo_width)}raw')
+    print(header_str)
+    print('  ' + '-' * (len(header_str) + 8))
+
+    for slot_name in SLOT_NAMES:
+        result = results_dct[slot_name]
+        combo_str   = result.combo if result.combo else '-'
+        raw_str     = result.raw if result.raw else '-'
+        print(f'  {slot_name.ljust(name_width)}{result.status.ljust(status_width)}'
+                f'{(result.source or "-").ljust(source_width)}'
+                f'{combo_str.ljust(combo_width)}{raw_str}')
+        if result.note:
+            print(f'  {"".ljust(name_width)}note: {result.note}')
+
+
+def _print_keymap_preview(results_dct: dict, desktop_env: str):
+    esc_first = (desktop_env or '').strip().lower() in _ESC_FIRST_DESKTOP_ENVS
+    joined_inputs_dct = {slot: ' | '.join(spellings_lst)
+                            for slot, spellings_lst in DEFAULT_INPUT_COMBOS_DCT.items()}
+    input_pad_w = max([24] + [len(joined) for joined in joined_inputs_dct.values()]) + 2
+
+    def resolved_combo(slot_name: str) -> 'str | None':
+        result = results_dct.get(slot_name)
+        if result is None or result.status != STATUS_RESOLVED:
+            return None
+        return result.combo
+
+    shifted_slots_lst = []
+    print("  4-then-Space window shift keymap(s):")
+    for area_slot, window_slot in _WINDOW_SHIFT_PAIRS_LST:
+        input_combo     = joined_inputs_dct.get(area_slot)
+        area_combo      = resolved_combo(area_slot)
+        window_combo    = resolved_combo(window_slot)
+        if not input_combo or not area_combo or not window_combo:
+            print(f'    (not built for {area_slot}: '
+                    f'{"no input combo" if not input_combo else ""}'
+                    f'{"area leg unresolved" if input_combo and not area_combo else ""}'
+                    f'{"window leg unresolved" if input_combo and area_combo else ""})')
+            continue
+        shifted_slots_lst.append(area_slot)
+        if esc_first:
+            continuation_str = (f'Esc, {_ESC_FIRST_DELAY_SEC}s pause, '
+                                f'{window_combo}')
+        else:
+            continuation_str = window_combo
+        print(f'    {input_combo.ljust(input_pad_w)}-> {area_combo}   '
+                f'(then Space -> {continuation_str}; Esc/Enter pass through)')
+
+    print("  Flat keymap ('Screenshots: detected shortcuts'):")
+    flat_cnt = 0
+    for slot_name in DEFAULT_INPUT_COMBOS_DCT:
+        if slot_name in shifted_slots_lst:
+            continue
+        input_combo = joined_inputs_dct[slot_name]
+        output_combo = resolved_combo(slot_name)
+        if output_combo is None:
+            de_norm = (desktop_env or '').strip().lower()
+            cmd_candidates_lst = CMD_FALLBACKS_DCT.get(de_norm, {}).get(slot_name)
+            if cmd_candidates_lst:
+                flat_cnt += 1
+                cmds_str = ' | '.join(' '.join(cmd_lst) for cmd_lst in cmd_candidates_lst)
+                print(f'    {input_combo.ljust(input_pad_w)}-> [run first found: {cmds_str}]'
+                        f'   ({slot_name}, command fallback)')
+                continue
+            print(f'    {input_combo.ljust(input_pad_w)}   (skipped: {slot_name} not resolved)')
+            continue
+        flat_cnt += 1
+        print(f'    {input_combo.ljust(input_pad_w)}-> {output_combo.ljust(22)}({slot_name})')
+    if not flat_cnt:
+        print('    (no entries)')
+
+
+def run_report(desktop_env, de_maj_ver, detect_note='') -> int:
+    """Print the full detection report for one environment. Called by
+    main() here and by the generic toshy-detector-check dispatcher
+    (python3 -m toshy_common.shortcut_detect)."""
+    print()
+    print('Toshy screenshot shortcut discovery')
+    print(f"  Environment: DESKTOP_ENV='{desktop_env}'  DE_MAJ_VER='{de_maj_ver}'"
+            f'  ({detect_note})')
+    print()
+
+    results_dct = resolve_outputs(desktop_env, de_maj_ver)
+    print()
+    print('Slot resolution:')
+    _print_slot_table(results_dct)
+    print()
+    print('Keymap preview (default input combos):')
+    _print_keymap_preview(results_dct, desktop_env)
+    _print_literal_keymaps(desktop_env, de_maj_ver, results_dct)
+    print()
+    return 0
+
+
+def main() -> int:
+    # Launcher stubs export TOSHY_LAUNCHER_NAME so --help shows the command
+    # the user actually typed; direct module launch shows the module form.
+    prog_str = os.environ.get('TOSHY_LAUNCHER_NAME') or 'python3 -m toshy_common.screenshots'
+    parser = argparse.ArgumentParser(
+        prog=prog_str,
+        description='Show detected screenshot shortcuts and the keymaps '
+                    'Toshy would build from them.')
+    parser.add_argument('--de', metavar='DESKTOP_ENV',
+        help="desktop environment override (e.g. 'kde', 'gnome', 'xfce')")
+    parser.add_argument('--de-ver', metavar='DE_MAJ_VER',
+        help='desktop environment major version override (e.g. 6, 42)')
+    args = parser.parse_args()
+
+    if args.de:
+        desktop_env, de_maj_ver = (args.de, args.de_ver)
+        detect_note = 'command-line override'
+    else:
+        desktop_env, de_maj_ver = _detect_environment()
+        if args.de_ver:
+            de_maj_ver = args.de_ver
+        detect_note = 'EnvironmentInfo detection'
+
+    return run_report(desktop_env, de_maj_ver, detect_note)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
+
+# End of file #
