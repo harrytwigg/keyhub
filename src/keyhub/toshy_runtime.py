@@ -22,6 +22,7 @@ VENDOR_DIR = Path(__file__).parent / "vendor" / "toshy"
 RUNTIME_DIR = DATA_DIR / "toshy"
 PREFS_DB = "toshy_user_preferences.sqlite"
 KWIN_DBUS_NAME = "org.toshy.Plasma"
+KICKSTART_SCRIPT = "toshy-kwin-script-kickstart.sh"
 
 
 def deploy() -> Path:
@@ -84,11 +85,21 @@ def start_kwin_service(runtime_dir: Path) -> None:
     service_dir = runtime_dir / "kwin-dbus-service"
     env = _python_env(runtime_dir)
 
-    # Installs/enables the KWin script if needed (Toshy does the same at start).
-    subprocess.Popen(
-        [sys.executable, str(service_dir / "toshy_kwin_script_setup.py")],
-        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    def setup_kwin_script():
+        # Installs/enables the KWin script if needed (Toshy does the same at start).
+        subprocess.run(
+            [sys.executable, str(service_dir / "toshy_kwin_script_setup.py")],
+            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        # The setup looks for this under ~/.config/toshy, which may not exist,
+        # so run keyhub's copy. Its brief dialog makes KWin report the focused
+        # window, so app-specific keymaps work before the first window switch.
+        subprocess.Popen(
+            ["bash", str(runtime_dir / "scripts" / KICKSTART_SCRIPT)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+
+    threading.Thread(target=setup_kwin_script, name="keyhub-kwin-setup", daemon=True).start()
 
     def supervise():
         while True:

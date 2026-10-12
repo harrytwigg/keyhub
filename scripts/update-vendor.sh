@@ -20,6 +20,8 @@ cp "$work/toshy/default-toshy-config/toshy_config.py" "$dest/"
 cp "$work/toshy/LICENSE" "$dest/"
 cp -r "$work/toshy/toshy_common" "$work/toshy/assets" \
       "$work/toshy/kwin-dbus-service" "$work/toshy/kwin-script" "$dest/"
+mkdir -p "$dest/scripts"
+cp "$work/toshy/scripts/toshy-kwin-script-kickstart.sh" "$dest/scripts/"
 rm -rf "$dest/toshy_common/_archived"
 find "$dest" -name __pycache__ -type d -prune -exec rm -rf {} +
 

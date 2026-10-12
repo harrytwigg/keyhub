@@ -31,8 +31,11 @@ physical keyboards ──grab──▶ keyhub ─┬─ dictation layer ──D-
 
 ## Install
 
-Requirements: Toshy installed (keyhub takes over from it), Handy ≥ 0.9 with
-its tray icon enabled, and Python ≥ 3.11.
+Requirements: Handy ≥ 0.9 with its tray icon enabled, and Python ≥ 3.11.
+Toshy doesn't need to be installed: keyhub ships its keymaps. If it is,
+`keyhub setup` imports its preferences and stops it. After that you can
+uninstall Toshy, but keep its KWin script (`toshy-dbus-notifyactivewindow`)
+and desktop tweaks. keyhub reinstalls the script if it's missing.
 
 ```sh
 git clone https://github.com/harrytwigg/keyhub && cd keyhub
