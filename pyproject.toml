@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "keyhub"
+dynamic = ["version"]
+description = "Toshy (Mac-style) keymaps and Handy dictation hotkeys in one process that owns the keyboard"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.11"
+dependencies = [
+    # Keymapper engine, pinned to the release the vendored Toshy config targets.
+    "xwaykeyz @ git+https://github.com/RedBearAK/xwaykeyz@7d6904cf64dee3bb52f1cea75040ae943bc8fe32",
+    "dbus-python>=1.3",
+    # Needed by the vendored Toshy config and its KWin service.
+    "lockfile",
+    "psutil",
+    "PyGObject",
+    "watchdog",
+    "xkbcommon<1.1",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+keyhub = "keyhub.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "keyhub.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+keyhub = ["vendor/toshy/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
