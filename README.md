@@ -31,15 +31,21 @@ physical keyboards ──grab──▶ keyhub ─┬─ dictation layer ──D-
 
 ## Install
 
-Requirements: a working Toshy install (for its udev/uinput permissions and
-system packages), Handy ≥ 0.9 with its tray icon enabled, and Python ≥ 3.11.
+Requirements: Toshy installed (keyhub takes over from it), Handy ≥ 0.9 with
+its tray icon enabled, and Python ≥ 3.11.
 
 ```sh
 git clone https://github.com/harrytwigg/keyhub && cd keyhub
 ./install.sh
 ```
 
-`install.sh` creates a venv in `~/.local/share/keyhub/venv`, links `keyhub` into
+If keyhub's udev rules aren't installed yet, `install.sh` first runs
+`scripts/install-system.sh` with sudo. That script lets the `input` group read
+keyboards and write `/dev/uinput`, and adds you to that group, so keyhub
+doesn't depend on Toshy's own rules. Log out and back in if you weren't
+already in `input`.
+
+`install.sh` then creates a venv in `~/.local/share/keyhub/venv`, links `keyhub` into
 `~/.local/bin`, and runs `keyhub setup`, which:
 
 1. Writes `~/.config/keyhub/config.toml`, importing your Handy bindings and
@@ -49,7 +55,8 @@ git clone https://github.com/harrytwigg/keyhub && cd keyhub
 3. Stops Toshy's systemd units, blocks them from starting (a drop-in that
    `keyhub restore` removes), and moves its tray/kickstart
    autostart entries aside, so nothing can restart Toshy's keymapper.
-4. Installs and starts `keyhub.service` (a systemd user unit).
+4. Installs, enables and starts `keyhub.service`, a systemd user unit that
+   starts with your desktop session (`graphical-session.target`).
 
 Everything it changed is recorded, and `keyhub restore` puts it all back.
 
