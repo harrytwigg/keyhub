@@ -42,6 +42,9 @@ class KeyboardConfig:
     ignore_devices: list[str] = field(default_factory=lambda: list(DEFAULT_IGNORE_DEVICES))
     # Force Toshy's Apple keyboard type on every keyboard while an Apple one is plugged in.
     apple_when_present: bool = False
+    # With apple_when_present: the KDE layout variant (e.g. "mac") to switch to while an Apple
+    # keyboard is plugged in, back to the other layouts when it isn't. "" leaves layouts alone.
+    apple_layout_variant: str = ""
 
 
 @dataclass
@@ -124,6 +127,9 @@ def render(cfg: Config) -> str:
         f"ignore_devices = {_toml_value(cfg.keyboard.ignore_devices)}",
         "# true: while an Apple keyboard is plugged in, every keyboard gets Toshy's Apple type.",
         f"apple_when_present = {_toml_value(cfg.keyboard.apple_when_present)}",
+        "# With apple_when_present: switch KDE to this layout variant (say \"mac\") while an Apple",
+        "# keyboard is plugged in. Needs two entries in KDE's layout list, e.g. gb and gb (mac).",
+        f"apple_layout_variant = {_toml_value(cfg.keyboard.apple_layout_variant)}",
         "",
         "# Toshy preferences (same names as Toshy's preferences app).",
         "[toshy]",

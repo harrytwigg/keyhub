@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import sys
 
-from . import apple, config, conflicts, toshy_runtime
+from . import apple, config, conflicts, kde_layout, toshy_runtime
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -65,6 +65,8 @@ def _watch_apple_keyboards(runtime, cfg: Config) -> None:
         kbtype = apple.kbtype_for(present, fallback)
         toshy_runtime.sync_prefs(runtime, {"override_kbtype": kbtype})
         log.info("keyboard type: %s", kbtype)
+        if cfg.keyboard.apple_layout_variant:
+            kde_layout.select(present, cfg.keyboard.apple_layout_variant)
 
     apple.watch(apply)
 

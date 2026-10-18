@@ -85,6 +85,7 @@ push_to_talk = true                      # false = press to start, press to stop
 [keyboard]
 ignore_devices = ["ydotool virtual device", "ydotoold virtual device"]  # never grab these
 apple_when_present = false               # true: Apple keyboard plugged in => Apple type for all
+apple_layout_variant = ""                # e.g. "mac": switch KDE's layout variant too (see below)
 
 [toshy]
 capslock_mode = "caps_is_caps"           # any Toshy preference
@@ -110,6 +111,17 @@ What comes back on unplug is `override_kbtype` under `[toshy]`, or
 a type chosen in Toshy's own preferences app is overwritten. Toshy reloads
 live, so nothing restarts; with the option off, a type left over from an
 earlier run is cleared on start.
+
+An Apple keyboard usually wants the Macintosh variant of the layout too: on
+`gb`, the plain layout puts `"` on Shift+2 while `gb (mac)` puts `@` there.
+KDE has a single active layout, so set `apple_layout_variant = "mac"` (with
+`apple_when_present = true`) and keyhub switches between the two entries of
+KDE's layout list as the Apple keyboard comes and goes. Add both entries first
+(System Settings → Keyboard → Layouts, or `LayoutList=gb,gb` and
+`VariantList=,mac` in `~/.config/kxkbrc`). It talks to KWin's
+`org.kde.keyboard` D-Bus service, which works on Wayland and X11, and it only
+switches when the Apple keyboard comes or goes, so a layout you pick by hand
+stays until then.
 
 `ydotool virtual device` (ydotool 0.1.x) and `ydotoold virtual device`
 (ydotool 1.x) are always ignored, whatever `ignore_devices` says, because Handy pastes by
