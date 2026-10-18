@@ -23,6 +23,7 @@ RUNTIME_DIR = DATA_DIR / "toshy"
 PREFS_DB = "toshy_user_preferences.sqlite"
 KWIN_DBUS_NAME = "org.toshy.Plasma"
 KICKSTART_SCRIPT = "toshy-kwin-script-kickstart.sh"
+DEFAULT_KBTYPE = "Auto-Adapt"  # Toshy's "no override": identify each keyboard on its own
 
 
 def deploy() -> Path:
@@ -62,6 +63,19 @@ def sync_prefs(runtime_dir: Path, prefs: dict[str, str]) -> None:
             "ON CONFLICT(name) DO UPDATE SET value = excluded.value",
             prefs.items(),
         )
+
+
+def clear_forced_kbtype(runtime_dir: Path, keep: str = "Apple") -> bool:
+    """Drop a leftover ``override_kbtype = keep`` from the preferences database.
+
+    The database outlives runs, so an override written while an Apple keyboard
+    was plugged in would otherwise keep forcing that type on every keyboard
+    once the feature is switched off. Returns whether it reset the value.
+    """
+    if read_prefs(runtime_dir / PREFS_DB).get("override_kbtype") != keep:
+        return False
+    sync_prefs(runtime_dir, {"override_kbtype": DEFAULT_KBTYPE})
+    return True
 
 
 def needs_kwin_service() -> bool:

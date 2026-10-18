@@ -24,7 +24,8 @@ DATA_DIR = _xdg("XDG_DATA_HOME", ".local/share") / "keyhub"
 
 # Handy pastes by typing Ctrl+V through ydotool's virtual keyboard. If keyhub
 # grabbed that device, Toshy would remap the paste keystroke.
-DEFAULT_IGNORE_DEVICES = ["ydotool virtual device"]
+# ydotool 0.1.x names its device "ydotool virtual device", 1.x "ydotoold virtual device".
+DEFAULT_IGNORE_DEVICES = ["ydotool virtual device", "ydotoold virtual device"]
 
 
 @dataclass
@@ -39,6 +40,8 @@ class DictationConfig:
 @dataclass
 class KeyboardConfig:
     ignore_devices: list[str] = field(default_factory=lambda: list(DEFAULT_IGNORE_DEVICES))
+    # Force Toshy's Apple keyboard type on every keyboard while an Apple one is plugged in.
+    apple_when_present: bool = False
 
 
 @dataclass
@@ -119,6 +122,8 @@ def render(cfg: Config) -> str:
         "[keyboard]",
         "# Devices keyhub must never grab (name, /dev/input path, or by-id path).",
         f"ignore_devices = {_toml_value(cfg.keyboard.ignore_devices)}",
+        "# true: while an Apple keyboard is plugged in, every keyboard gets Toshy's Apple type.",
+        f"apple_when_present = {_toml_value(cfg.keyboard.apple_when_present)}",
         "",
         "# Toshy preferences (same names as Toshy's preferences app).",
         "[toshy]",

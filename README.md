@@ -83,7 +83,8 @@ cancel_key = "escape"                    # only intercepted while dictating
 push_to_talk = true                      # false = press to start, press to stop
 
 [keyboard]
-ignore_devices = ["ydotool virtual device"]  # never grab these
+ignore_devices = ["ydotool virtual device", "ydotoold virtual device"]  # never grab these
+apple_when_present = false               # true: Apple keyboard plugged in => Apple type for all
 
 [toshy]
 capslock_mode = "caps_is_caps"           # any Toshy preference
@@ -94,7 +95,24 @@ Hotkeys use the names from Handy's settings (`ctrl`, `shift_left`, `cmd`,
 any Toshy remapping. Extra modifiers don't match: `shift_left+z` ignores
 Ctrl+Shift+Z.
 
-`ydotool virtual device` is ignored by default because Handy pastes by
+Toshy picks a keyboard type per device by default: an Apple keyboard gets
+the Apple keymap and the laptop's own keyboard the Windows one. With
+`apple_when_present = true`, keyhub instead forces the Apple type on every
+keyboard while one is plugged in, and hands the choice back to Toshy when it
+is unplugged. A device counts as an Apple keyboard when it has a keyboard
+handler and its name contains the whole word `Apple` or `Magic Keyboard`
+(so trackpads don't count, and neither does "Pineapple Keyboard"). On Apple
+hardware running Linux the built-in keyboard matches, so the option is then
+always on.
+
+What comes back on unplug is `override_kbtype` under `[toshy]`, or
+`Auto-Adapt` if you set none. keyhub's config is the only source for this:
+a type chosen in Toshy's own preferences app is overwritten. Toshy reloads
+live, so nothing restarts; with the option off, a type left over from an
+earlier run is cleared on start.
+
+`ydotool virtual device` (ydotool 0.1.x) and `ydotoold virtual device`
+(ydotool 1.x) are always ignored, whatever `ignore_devices` says, because Handy pastes by
 typing Ctrl+V through it. If keyhub grabbed it, Toshy would remap the paste.
 
 ## How dictation is driven
