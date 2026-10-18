@@ -73,16 +73,23 @@ def watch(
     """
     stop = stop or threading.Event()
     applied: bool | None = None
+    failing = False
 
     def sync(present: bool) -> None:
-        nonlocal applied
+        nonlocal applied, failing
         if present == applied:
             return
         try:
             apply(present)
-        except Exception:
-            log.exception("could not apply the keyboard type; retrying in %ss", interval)
+        except Exception as exc:
+            # Full traceback once per run of failures, then one line per retry.
+            if failing:
+                log.warning("still can't apply the keyboard setting (%s); retrying", exc)
+            else:
+                log.exception("could not apply the keyboard setting; retrying in %ss", interval)
+            failing = True
             return
+        failing = False
         if applied is not None:
             log.info("Apple keyboard %s", "connected" if present else "disconnected")
         applied = present

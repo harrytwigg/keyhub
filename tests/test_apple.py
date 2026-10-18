@@ -173,3 +173,32 @@ def test_unreadable_devices_file_keeps_the_last_state(tmp_path):
     assert calls == [True]
     stop.set()
     thread.join(2)
+
+
+def test_config_layout_variant_round_trips(tmp_path):
+    cfg = config.Config()
+    assert cfg.keyboard.apple_layout_variant == ""
+    cfg.keyboard.apple_layout_variant = "mac"
+    path = tmp_path / "config.toml"
+    config.save(cfg, path)
+    assert config.load(path).keyboard.apple_layout_variant == "mac"
+
+
+def test_repeated_failures_log_one_traceback_then_one_liners(tmp_path, caplog):
+    path = tmp_path / "devices"
+    path.write_text(devices(BUILT_IN))
+    attempts, enough, stop = [], threading.Event(), threading.Event()
+
+    def always_fails(present):
+        attempts.append(present)
+        if len(attempts) >= 4:
+            enough.set()
+        raise RuntimeError("KWin not running")
+
+    thread = apple.watch(always_fails, path=path, interval=0.01, stop=stop)
+    assert enough.wait(2)
+    stop.set()
+    thread.join(2)
+    tracebacks = [r for r in caplog.records if r.exc_info]
+    assert len(tracebacks) == 1
+    assert any("still can't apply" in r.getMessage() for r in caplog.records)
