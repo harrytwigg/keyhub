@@ -13,6 +13,7 @@ import sys
 
 from . import apple, config, conflicts, kde_layout, toshy_runtime
 from .config import Config
+from .passthrough import Passthrough
 
 log = logging.getLogger(__name__)
 
@@ -21,23 +22,32 @@ log = logging.getLogger(__name__)
 EXIT_CONFLICT = 3
 
 
-def _install_dictation(cfg: Config) -> None:
+def _install_event_hook(cfg: Config, passthrough: Passthrough) -> None:
+    """Put keyhub's layers in front of the keymapper: dictation first, then the bypass."""
     from xwaykeyz import input as xinput
+    from xwaykeyz import transform as xtransform
 
-    from .dictation import DictationLayer
-    from .handy import HandyClient
+    layer = None
+    if cfg.dictation.enabled:
+        from .dictation import DictationLayer
+        from .handy import HandyClient
 
-    layer = DictationLayer.from_config(cfg.dictation, HandyClient())
+        layer = DictationLayer.from_config(cfg.dictation, HandyClient())
+        hotkeys = ", ".join(b.hotkey.text for b in layer.bindings)
+        mode = "push-to-talk" if cfg.dictation.push_to_talk else "toggle"
+        log.info("dictation hotkeys: %s (%s)", hotkeys, mode)
+
     transform = xinput.on_event
 
     def on_event(event, device):
-        if not layer.filter(event):
-            transform(event, device)
+        if layer is not None and layer.filter(event):
+            return
+        if passthrough.bypass(event):
+            xtransform._output.send_event(event)
+            return
+        transform(event, device)
 
     xinput.on_event = on_event
-    hotkeys = ", ".join(b.hotkey.text for b in layer.bindings)
-    mode = "push-to-talk" if cfg.dictation.push_to_talk else "toggle"
-    log.info("dictation hotkeys: %s (%s)", hotkeys, mode)
 
 
 def ignored_devices(cfg: Config, toshy_ignored: list[str]) -> list[str]:
@@ -51,22 +61,31 @@ def ignored_devices(cfg: Config, toshy_ignored: list[str]) -> list[str]:
     ]))
 
 
-def _apply_kbtype_setting(runtime, cfg: Config) -> None:
-    if cfg.keyboard.apple_when_present:
-        _watch_apple_keyboards(runtime, cfg)
-    elif "override_kbtype" not in cfg.toshy and toshy_runtime.clear_forced_kbtype(runtime):
+def _apply_kbtype_setting(runtime, cfg: Config, passthrough: Passthrough | None = None) -> None:
+    kb = cfg.keyboard
+    if kb.apple_when_present or kb.apple_layout_variant or kb.passthrough_without_apple:
+        _watch_apple_keyboards(runtime, cfg, passthrough or Passthrough())
+    if kb.apple_when_present:
+        return
+    if "override_kbtype" not in cfg.toshy and toshy_runtime.clear_forced_kbtype(runtime):
         log.info("cleared a leftover Apple keyboard type from an earlier run")
 
 
-def _watch_apple_keyboards(runtime, cfg: Config) -> None:
+def _watch_apple_keyboards(runtime, cfg: Config, passthrough: Passthrough) -> None:
+    """Follow whether an Apple keyboard is plugged in, for each setting that cares."""
+    kb = cfg.keyboard
     fallback = cfg.toshy.get("override_kbtype", toshy_runtime.DEFAULT_KBTYPE)
 
     def apply(present: bool) -> None:
-        kbtype = apple.kbtype_for(present, fallback)
-        toshy_runtime.sync_prefs(runtime, {"override_kbtype": kbtype})
-        log.info("keyboard type: %s", kbtype)
-        if cfg.keyboard.apple_layout_variant:
-            kde_layout.select(present, cfg.keyboard.apple_layout_variant)
+        if kb.passthrough_without_apple:
+            passthrough.want(not present)
+            log.info("Toshy keymaps: %s", "on" if present else "bypassed (plain PC keys)")
+        if kb.apple_when_present:
+            kbtype = apple.kbtype_for(present, fallback)
+            toshy_runtime.sync_prefs(runtime, {"override_kbtype": kbtype})
+            log.info("keyboard type: %s", kbtype)
+        if kb.apple_layout_variant:
+            kde_layout.select(present, kb.apple_layout_variant)
 
     apple.watch(apply)
 
@@ -81,7 +100,8 @@ def run(cfg: Config) -> None:
 
     runtime = toshy_runtime.deploy()
     toshy_runtime.sync_prefs(runtime, cfg.toshy)
-    _apply_kbtype_setting(runtime, cfg)
+    passthrough = Passthrough()
+    _apply_kbtype_setting(runtime, cfg, passthrough)
     if toshy_runtime.needs_kwin_service():
         toshy_runtime.start_kwin_service(runtime)
 
@@ -104,8 +124,7 @@ def run(cfg: Config) -> None:
         xcli.print_config_traceback()
         sys.exit(1)
 
-    if cfg.dictation.enabled:
-        _install_dictation(cfg)
+    _install_event_hook(cfg, passthrough)
 
     only = config_api._DEVICE_ARGS["only_devices"] or None
     ignore = ignored_devices(cfg, config_api._DEVICE_ARGS["ignore_devices"])
