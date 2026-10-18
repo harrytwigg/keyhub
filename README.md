@@ -83,7 +83,8 @@ cancel_key = "escape"                    # only intercepted while dictating
 push_to_talk = true                      # false = press to start, press to stop
 
 [keyboard]
-ignore_devices = ["ydotool virtual device"]  # never grab these
+ignore_devices = ["ydotool virtual device", "ydotoold virtual device"]  # never grab these
+apple_when_present = false               # true: Apple keyboard plugged in => Apple type for all
 
 [toshy]
 capslock_mode = "caps_is_caps"           # any Toshy preference
@@ -94,7 +95,16 @@ Hotkeys use the names from Handy's settings (`ctrl`, `shift_left`, `cmd`,
 any Toshy remapping. Extra modifiers don't match: `shift_left+z` ignores
 Ctrl+Shift+Z.
 
-`ydotool virtual device` is ignored by default because Handy pastes by
+Toshy picks a keyboard type per device by default: an Apple keyboard gets
+the Apple keymap and the laptop's own keyboard the Windows one. With
+`apple_when_present = true`, keyhub instead forces the Apple type on every
+keyboard while one is plugged in (matched by an `Apple` or `Magic Keyboard`
+device name) and hands the choice back to Toshy when it is unplugged. Toshy
+reloads live, so nothing restarts. A fixed `override_kbtype` under `[toshy]`
+is what comes back after unplugging.
+
+`ydotool virtual device` (ydotool 0.1.x) and `ydotoold virtual device`
+(ydotool 1.x) are ignored by default because Handy pastes by
 typing Ctrl+V through it. If keyhub grabbed it, Toshy would remap the paste.
 
 ## How dictation is driven

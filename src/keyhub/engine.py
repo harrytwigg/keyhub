@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import sys
 
-from . import conflicts, toshy_runtime
+from . import apple, conflicts, toshy_runtime
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -40,6 +40,17 @@ def _install_dictation(cfg: Config) -> None:
     log.info("dictation hotkeys: %s (%s)", hotkeys, mode)
 
 
+def _watch_apple_keyboards(runtime, cfg: Config) -> None:
+    fallback = cfg.toshy.get("override_kbtype", "Auto-Adapt")
+
+    def apply(present: bool) -> None:
+        kbtype = apple.kbtype_for(present, fallback)
+        toshy_runtime.sync_prefs(runtime, {"override_kbtype": kbtype})
+        log.info("keyboard type: %s", kbtype)
+
+    apple.watch(apply)
+
+
 def run(cfg: Config) -> None:
     blocking = [c for c in conflicts.check() if c.blocking]
     if blocking:
@@ -50,6 +61,8 @@ def run(cfg: Config) -> None:
 
     runtime = toshy_runtime.deploy()
     toshy_runtime.sync_prefs(runtime, cfg.toshy)
+    if cfg.keyboard.apple_when_present:
+        _watch_apple_keyboards(runtime, cfg)
     if toshy_runtime.needs_kwin_service():
         toshy_runtime.start_kwin_service(runtime)
 
