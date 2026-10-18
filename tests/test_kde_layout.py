@@ -39,9 +39,9 @@ def test_configured_variants_lines_up_with_the_layout_list(tmp_path):
 
 def test_configured_variants_pads_a_missing_or_short_variant_list(tmp_path):
     assert kde_layout.configured_variants(
-        kxkbrc(tmp_path, "[Layout]\nLayoutList=gb,us,de\nVariantList=mac\n")) == ["mac", "", ""]
+        kxkbrc(tmp_path, "[Layout]\nUse=true\nLayoutList=gb,us,de\nVariantList=mac\n")) == ["mac", "", ""]
     assert kde_layout.configured_variants(
-        kxkbrc(tmp_path, "[Layout]\nLayoutList=gb,gb\n")) == ["", ""]
+        kxkbrc(tmp_path, "[Layout]\nUse=true\nLayoutList=gb,gb\n")) == ["", ""]
 
 
 def test_configured_variants_empty_without_a_layout_list(tmp_path):
@@ -107,3 +107,45 @@ def test_select_propagates_dbus_errors_so_the_watcher_retries():
 
     with pytest.raises(dbus.DBusException):
         kde_layout.select(True, "mac", Down([]), [])
+
+
+def test_use_false_means_kxkbrc_layouts_are_not_in_effect(tmp_path):
+    path = kxkbrc(tmp_path, "[Layout]\nLayoutList=gb,gb\nUse=false\nVariantList=,mac\n")
+    assert kde_layout.configured_variants(path) == []
+
+
+def test_missing_use_means_not_in_effect(tmp_path):
+    path = kxkbrc(tmp_path, "[Layout]\nLayoutList=gb,gb\nVariantList=,mac\n")
+    assert kde_layout.configured_variants(path) == []
+
+
+def test_use_true_is_case_and_space_tolerant(tmp_path):
+    path = kxkbrc(tmp_path, "[Layout]\nLayoutList=gb,gb\nUse = True \nVariantList=,mac\n")
+    assert kde_layout.configured_variants(path) == ["", "mac"]
+
+
+def test_non_utf8_kxkbrc_is_treated_as_unreadable(tmp_path):
+    path = tmp_path / "kxkbrc"
+    path.write_bytes(b"[Layout]\nDisplayNames=\xff,\nLayoutList=gb,gb\nUse=true\nVariantList=,mac\n")
+    assert kde_layout.configured_variants(path) == []
+
+
+def test_variant_matching_ignores_case_and_spaces():
+    assert kde_layout.pick_index(["", "mac"], " MAC ", apple=True) == 1
+    assert kde_layout.pick_index(["", "MAC"], "mac", apple=False) == 0
+
+
+def test_unplug_keeps_a_non_variant_layout_you_are_already_on():
+    # List: us, gb(mac), gb. Sitting on gb (index 2): don't jump to us (index 0).
+    assert kde_layout.pick_index(["", "mac", ""], "mac", apple=False, current=2) == 2
+    assert kde_layout.pick_index(["", "mac", ""], "mac", apple=False, current=1) == 0
+
+
+def test_plug_keeps_a_variant_layout_you_are_already_on():
+    assert kde_layout.pick_index(["mac", "", "mac"], "mac", apple=True, current=2) == 2
+
+
+def test_select_does_not_jump_between_equally_good_layouts():
+    iface = FakeLayouts([US, UK_MAC, UK], current=2)
+    kde_layout.select(False, "mac", iface, ["", "mac", ""])
+    assert iface.set_calls == []

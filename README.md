@@ -118,11 +118,16 @@ KDE has a single active layout, so set `apple_layout_variant = "mac"` (with
 `apple_when_present = true`) and keyhub switches between the two entries of
 KDE's layout list as the Apple keyboard comes and goes. Add both entries first
 (System Settings → Keyboard → Layouts, or `LayoutList=gb,gb` and
-`VariantList=,mac` in `~/.config/kxkbrc`; keyhub reads each entry's variant
-from that file, since KWin doesn't report it). It talks to KWin's
+`VariantList=,mac` with `Use=true` in `~/.config/kxkbrc`). keyhub reads each
+entry's variant from that file, since KWin doesn't report it, so the list has
+to be there: layouts that KDE takes from the system config (no `Use=true`)
+aren't seen, and keyhub logs a warning and leaves the layout alone. It checks
+the list when an Apple keyboard comes or goes, so fix the list and replug (or
+`systemctl --user restart keyhub`). It talks to KWin's
 `org.kde.keyboard` D-Bus service, which works on Wayland and X11, and it only
 switches when the Apple keyboard comes or goes, so a layout you pick by hand
-stays until then.
+stays until then, and on either change it stays on the current layout if that
+already qualifies. The variant is matched ignoring case and spaces.
 
 `ydotool virtual device` (ydotool 0.1.x) and `ydotoold virtual device`
 (ydotool 1.x) are always ignored, whatever `ignore_devices` says, because Handy pastes by

@@ -34,29 +34,41 @@ def configured_variants(path: Path = KXKBRC) -> list[str]:
     KWin's ``getLayoutsList`` returns only (layout, display name, description),
     not the variant, so read it from the same ``kxkbrc`` list KWin builds the
     entries from (``VariantList`` lines up with ``LayoutList`` by position).
+    KDE only uses that list when ``Use=true``; otherwise the session layouts
+    come from the system and this returns [] rather than stale data.
     """
     parser = configparser.RawConfigParser(strict=False)
     parser.optionxform = str  # keys are case-sensitive
     try:
         parser.read(path, encoding="utf-8")
+        in_use = parser.get("Layout", "Use", fallback="").strip().lower() == "true"
         layouts = parser.get("Layout", "LayoutList", fallback="").split(",")
         variants = parser.get("Layout", "VariantList", fallback="").split(",")
-    except (OSError, configparser.Error):
+    except (OSError, ValueError, configparser.Error):  # ValueError: bytes that aren't UTF-8
         return []
-    if layouts == [""]:
+    if not in_use or layouts == [""]:
         return []
     return [v.strip() for v in variants[: len(layouts)]] + [""] * (len(layouts) - len(variants))
 
 
-def pick_index(variants: list[str], variant: str, apple: bool) -> int | None:
-    """The layout to use: the first ``variant`` one for an Apple keyboard, else the first other.
+def _same(a: str, b: str) -> bool:
+    return a.strip().casefold() == b.strip().casefold()
 
-    None when the list has no such entry.
+
+def pick_index(
+    variants: list[str], variant: str, apple: bool, current: int | None = None,
+) -> int | None:
+    """The layout to use: a ``variant`` one for an Apple keyboard, else a non-variant one.
+
+    Stays on ``current`` when it already qualifies, otherwise takes the first
+    that does. None when the list has no such entry.
     """
-    for index, layout_variant in enumerate(variants):
-        if (layout_variant == variant) == apple:
-            return index
-    return None
+    def wanted(index: int) -> bool:
+        return _same(variants[index], variant) == apple
+
+    if current is not None and 0 <= current < len(variants) and wanted(current):
+        return current
+    return next((i for i in range(len(variants)) if wanted(i)), None)
 
 
 def _interface(bus=None):
@@ -79,13 +91,14 @@ def select(apple: bool, variant: str, iface=None, variants: list[str] | None = N
             len(names), KXKBRC, len(variants),
         )
         return
-    index = pick_index(variants, variant, apple)
+    current = int(iface.getLayout())
+    index = pick_index(variants, variant, apple, current)
     if index is None:
         log.warning(
             "KDE's layout list has no %s layout; add both, for example gb and gb (%s), "
             "to use apple_layout_variant", f"'{variant}'" if apple else f"non-'{variant}'", variant,
         )
         return
-    if int(iface.getLayout()) != index:
+    if current != index:
         iface.setLayout(dbus.UInt32(index))
         log.info("keyboard layout: %s", names[index])
