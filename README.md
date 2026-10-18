@@ -133,10 +133,14 @@ already qualifies. The variant is matched ignoring case and spaces.
 With `passthrough_without_apple = true` Toshy's keymaps apply only while an
 Apple keyboard is plugged in. Without one (a laptop on its own keyboard) key
 events go straight to the virtual keyboard, so Ctrl+C is Ctrl+C. The
-dictation hotkeys are checked first and keep working. Each key keeps the route
-it was pressed with until it is released, so switching while a key is held
-can't leave a modifier stuck. The three Apple-keyboard settings are
-independent of each other.
+dictation hotkeys are checked first and keep working. An Apple keyboard's own
+keys are never bypassed, so the Mac keymaps apply to it from its first
+keystroke even before keyhub has noticed it was plugged in or woke up. Each
+key keeps the route it was pressed with, per keyboard, until it is released,
+so switching while a key is held can't leave a modifier stuck; the shortcut
+you are in the middle of at that moment may be sent wrongly (a lone Ctrl tap
+instead of Ctrl+C, say). The three Apple-keyboard settings are independent of
+each other.
 
 `ydotool virtual device` (ydotool 0.1.x) and `ydotoold virtual device`
 (ydotool 1.x) are always ignored, whatever `ignore_devices` says, because Handy pastes by

@@ -37,12 +37,14 @@ def _install_event_hook(cfg: Config, passthrough: Passthrough) -> None:
         mode = "push-to-talk" if cfg.dictation.push_to_talk else "toggle"
         log.info("dictation hotkeys: %s (%s)", hotkeys, mode)
 
+    if layer is None and not cfg.keyboard.passthrough_without_apple:
+        return  # nothing to put in front of the keymapper
     transform = xinput.on_event
 
     def on_event(event, device):
         if layer is not None and layer.filter(event):
             return
-        if passthrough.bypass(event):
+        if passthrough.bypass(event, device):
             xtransform._output.send_event(event)
             return
         transform(event, device)
