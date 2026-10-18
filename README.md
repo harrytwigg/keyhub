@@ -118,7 +118,8 @@ KDE has a single active layout, so set `apple_layout_variant = "mac"` (with
 `apple_when_present = true`) and keyhub switches between the two entries of
 KDE's layout list as the Apple keyboard comes and goes. Add both entries first
 (System Settings → Keyboard → Layouts, or `LayoutList=gb,gb` and
-`VariantList=,mac` in `~/.config/kxkbrc`). It talks to KWin's
+`VariantList=,mac` in `~/.config/kxkbrc`; keyhub reads each entry's variant
+from that file, since KWin doesn't report it). It talks to KWin's
 `org.kde.keyboard` D-Bus service, which works on Wayland and X11, and it only
 switches when the Apple keyboard comes or goes, so a layout you pick by hand
 stays until then.
