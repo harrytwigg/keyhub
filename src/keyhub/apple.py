@@ -21,7 +21,8 @@ log = logging.getLogger(__name__)
 PROC_DEVICES = Path("/proc/bus/input/devices")
 POLL_SECONDS = 2.0
 
-APPLE_NAME = re.compile(r"apple|magic keyboard", re.I)
+# Whole words, so "Pineapple Keyboard" and "Grapple Pro" don't count.
+APPLE_NAME = re.compile(r"\bapple\b|\bmagic\s*keyboard\b", re.I)
 APPLE_KBTYPE = "Apple"
 
 
@@ -48,11 +49,12 @@ def kbtype_for(present: bool, fallback: str) -> str:
     return APPLE_KBTYPE if present else fallback
 
 
-def _read_present(path: Path) -> bool:
+def _read_present(path: Path) -> bool | None:
+    """True/False from the device list, or None when it can't be read."""
     try:
         return apple_keyboard_present(path.read_text(errors="replace"))
     except OSError:
-        return False
+        return None
 
 
 def watch(
@@ -62,19 +64,37 @@ def watch(
     interval: float = POLL_SECONDS,
     stop: threading.Event | None = None,
 ) -> threading.Thread:
-    """Call ``apply(present)`` now and again whenever an Apple keyboard comes or goes."""
-    stop = stop or threading.Event()
-    state = _read_present(path)
-    apply(state)
+    """Call ``apply(present)`` now and again whenever an Apple keyboard comes or goes.
 
-    def poll():
-        nonlocal state
+    A failing ``apply`` is logged and retried on the next poll, so a transient
+    error (say a locked preferences database) never ends the watcher or
+    aborts startup. An unreadable device list keeps the last known state
+    rather than being mistaken for an unplug.
+    """
+    stop = stop or threading.Event()
+    applied: bool | None = None
+
+    def sync(present: bool) -> None:
+        nonlocal applied
+        if present == applied:
+            return
+        try:
+            apply(present)
+        except Exception:
+            log.exception("could not apply the keyboard type; retrying in %ss", interval)
+            return
+        if applied is not None:
+            log.info("Apple keyboard %s", "connected" if present else "disconnected")
+        applied = present
+
+    first = _read_present(path)
+    sync(bool(first))
+
+    def poll() -> None:
         while not stop.wait(interval):
-            now = _read_present(path)
-            if now != state:
-                state = now
-                log.info("Apple keyboard %s", "connected" if now else "disconnected")
-                apply(now)
+            present = _read_present(path)
+            if present is not None:
+                sync(present)
 
     thread = threading.Thread(target=poll, name="keyhub-apple", daemon=True)
     thread.start()

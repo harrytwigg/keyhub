@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import sys
 
-from . import apple, conflicts, toshy_runtime
+from . import apple, config, conflicts, toshy_runtime
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -40,8 +40,26 @@ def _install_dictation(cfg: Config) -> None:
     log.info("dictation hotkeys: %s (%s)", hotkeys, mode)
 
 
+def ignored_devices(cfg: Config, toshy_ignored: list[str]) -> list[str]:
+    """Devices never to grab: Toshy's, keyhub's built-ins, then the config's.
+
+    The built-ins are always included, not just defaulted, so a config.toml
+    written before one was added still ignores it.
+    """
+    return list(dict.fromkeys([
+        *toshy_ignored, *config.DEFAULT_IGNORE_DEVICES, *cfg.keyboard.ignore_devices,
+    ]))
+
+
+def _apply_kbtype_setting(runtime, cfg: Config) -> None:
+    if cfg.keyboard.apple_when_present:
+        _watch_apple_keyboards(runtime, cfg)
+    elif "override_kbtype" not in cfg.toshy and toshy_runtime.clear_forced_kbtype(runtime):
+        log.info("cleared a leftover Apple keyboard type from an earlier run")
+
+
 def _watch_apple_keyboards(runtime, cfg: Config) -> None:
-    fallback = cfg.toshy.get("override_kbtype", "Auto-Adapt")
+    fallback = cfg.toshy.get("override_kbtype", toshy_runtime.DEFAULT_KBTYPE)
 
     def apply(present: bool) -> None:
         kbtype = apple.kbtype_for(present, fallback)
@@ -61,8 +79,7 @@ def run(cfg: Config) -> None:
 
     runtime = toshy_runtime.deploy()
     toshy_runtime.sync_prefs(runtime, cfg.toshy)
-    if cfg.keyboard.apple_when_present:
-        _watch_apple_keyboards(runtime, cfg)
+    _apply_kbtype_setting(runtime, cfg)
     if toshy_runtime.needs_kwin_service():
         toshy_runtime.start_kwin_service(runtime)
 
@@ -89,5 +106,5 @@ def run(cfg: Config) -> None:
         _install_dictation(cfg)
 
     only = config_api._DEVICE_ARGS["only_devices"] or None
-    ignore = [*config_api._DEVICE_ARGS["ignore_devices"], *cfg.keyboard.ignore_devices]
+    ignore = ignored_devices(cfg, config_api._DEVICE_ARGS["ignore_devices"])
     main_loop(only, True, ignore)
