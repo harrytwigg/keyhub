@@ -86,6 +86,7 @@ push_to_talk = true                      # false = press to start, press to stop
 ignore_devices = ["ydotool virtual device", "ydotoold virtual device"]  # never grab these
 apple_when_present = false               # true: Apple keyboard plugged in => Apple type for all
 apple_layout_variant = ""                # e.g. "mac": switch KDE's layout variant too (see below)
+passthrough_without_apple = false        # true: plain PC keys unless an Apple keyboard is plugged in
 
 [toshy]
 capslock_mode = "caps_is_caps"           # any Toshy preference
@@ -114,9 +115,9 @@ earlier run is cleared on start.
 
 An Apple keyboard usually wants the Macintosh variant of the layout too: on
 `gb`, the plain layout puts `"` on Shift+2 while `gb (mac)` puts `@` there.
-KDE has a single active layout, so set `apple_layout_variant = "mac"` (with
-`apple_when_present = true`) and keyhub switches between the two entries of
-KDE's layout list as the Apple keyboard comes and goes. Add both entries first
+KDE has a single active layout, so set `apple_layout_variant = "mac"` and
+keyhub switches between the two entries of KDE's layout list as the Apple
+keyboard comes and goes. Add both entries first
 (System Settings → Keyboard → Layouts, or `LayoutList=gb,gb` and
 `VariantList=,mac` with `Use=true` in `~/.config/kxkbrc`). keyhub reads each
 entry's variant from that file, since KWin doesn't report it, so the list has
@@ -128,6 +129,18 @@ the list when an Apple keyboard comes or goes, so fix the list and replug (or
 switches when the Apple keyboard comes or goes, so a layout you pick by hand
 stays until then, and on either change it stays on the current layout if that
 already qualifies. The variant is matched ignoring case and spaces.
+
+With `passthrough_without_apple = true` Toshy's keymaps apply only while an
+Apple keyboard is plugged in. Without one (a laptop on its own keyboard) key
+events go straight to the virtual keyboard, so Ctrl+C is Ctrl+C. The
+dictation hotkeys are checked first and keep working. An Apple keyboard's own
+keys are never bypassed, so the Mac keymaps apply to it from its first
+keystroke even before keyhub has noticed it was plugged in or woke up. Each
+key keeps the route it was pressed with, per keyboard, until it is released,
+so switching while a key is held can't leave a modifier stuck; the shortcut
+you are in the middle of at that moment may be sent wrongly (a lone Ctrl tap
+instead of Ctrl+C, say). The three Apple-keyboard settings are independent of
+each other.
 
 `ydotool virtual device` (ydotool 0.1.x) and `ydotoold virtual device`
 (ydotool 1.x) are always ignored, whatever `ignore_devices` says, because Handy pastes by
